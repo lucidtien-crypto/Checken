@@ -6,6 +6,7 @@
   <title>Quản Lý Nhiệm Vụ</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <style>
     body {
@@ -149,11 +150,11 @@
   <script>
     const firebaseConfig = {
       apiKey: "AIzaSyDemoConfigKeyForUserFirestore",
-      authDomain: "user-task-app.firebaseapp.com",
-      projectId: "user-task-app",
-      storageBucket: "user-task-app.appspot.com",
-      messagingSenderId: "1234567890",
-      appId: "1:1234567890:web:demoapp"
+      authDomain: "deutschlern-80785.firebaseapp.com",
+      projectId: "deutschlern-80785",
+      storageBucket: "deutschlern-80785.appspot.com",
+      messagingSenderId: "258723517724",
+      appId: "1:258723517724:web:demoapp"
     };
 
     let tasks = JSON.parse(localStorage.getItem('tasks_data')) || [];
@@ -186,22 +187,29 @@
     function initFirebase() {
       try {
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-        db = firebase.firestore();
         
-        document.getElementById('status-dot').className = 'w-2 h-2 rounded-full bg-emerald-400 inline-block';
-        document.getElementById('status-text').innerText = 'Cloud Auto-Sync Active';
+        // Xác thực ẩn danh tự động để vượt qua Firestore Rules "request.auth != null"
+        firebase.auth().signInAnonymously()
+          .then(() => {
+            db = firebase.firestore();
+            document.getElementById('status-dot').className = 'w-2 h-2 rounded-full bg-emerald-400 inline-block';
+            document.getElementById('status-text').innerText = 'Cloud Auto-Sync Active (Secured)';
 
-        db.collection('app_tasks').doc('main_list').onSnapshot(doc => {
-          if (doc.exists && doc.data().tasks) {
-            tasks = doc.data().tasks;
-            localStorage.setItem('tasks_data', JSON.stringify(tasks));
-            checkAutoResetNewDay();
-            renderTasks();
-          }
-        }, err => {
-          document.getElementById('status-text').innerText = 'Lưu Local (Offline)';
-          document.getElementById('status-dot').className = 'w-2 h-2 rounded-full bg-slate-500 inline-block';
-        });
+            db.collection('app_tasks').doc('main_list').onSnapshot(doc => {
+              if (doc.exists && doc.data().tasks) {
+                tasks = doc.data().tasks;
+                localStorage.setItem('tasks_data', JSON.stringify(tasks));
+                checkAutoResetNewDay();
+                renderTasks();
+              }
+            }, err => console.warn("Lỗi Firestore:", err));
+          })
+          .catch(err => {
+            console.warn("Lỗi Auth Ẩn Danh:", err);
+            document.getElementById('status-text').innerText = 'Lưu Local (Offline)';
+            document.getElementById('status-dot').className = 'w-2 h-2 rounded-full bg-slate-500 inline-block';
+          });
+
       } catch (e) {
         document.getElementById('status-text').innerText = 'Lưu Local (Offline)';
         document.getElementById('status-dot').className = 'w-2 h-2 rounded-full bg-slate-500 inline-block';
@@ -266,7 +274,7 @@
         completed: oldTask ? oldTask.completed : false,
         repeat: repeat,
         repeatMonths: customMonths,
-        logs: oldTask ? (oldTask.logs || {}) : {}, // Lưu dạng Object: { "2026-10-28": 50 }
+        logs: oldTask ? (oldTask.logs || {}) : {},
         lastDoneDate: oldTask ? oldTask.lastDoneDate : null
       };
 
@@ -284,18 +292,15 @@
       if (label) label.innerText = `${val}%`;
     }
 
-    // ĐÃ CHỈNH SỬA LẠI: DUYỆT CẢ NHỮNG MỨC % DƯỚI 100%
     function applyPercentOK(id) {
       const task = tasks.find(t => t.id === id);
       if (!task) return;
 
       const val = tempSliderValues[id] !== undefined ? tempSliderValues[id] : task.progress;
       
-      // Nếu chọn 0% thì coi như chưa làm
       if (val === 0) {
         updateProgress(id, 0, false);
       } else {
-        // Dù dưới 100% (ví dụ 40%, 70%) bấm Duyệt OK vẫn chốt và tính là ĐÃ XONG TIẾN ĐỘ HÔM NAY
         updateProgress(id, val, true);
       }
     }
@@ -312,7 +317,6 @@
         task.progress = task.completed ? 100 : 0;
       } else {
         task.progress = parseInt(value);
-        // Khi dùng Slider: isChecked = true nghĩa là đã bấm Duyệt OK
         task.completed = isChecked !== null ? isChecked : (task.progress > 0);
       }
 
@@ -370,7 +374,6 @@
       const todayStr = new Date().toISOString().split('T')[0];
 
       const filtered = tasks.filter(t => {
-        // Tab Hôm nay, Tuần này, Tháng này: ĐÃ XONG (DÙ % BAO NHIÊU KHÁC 0 KHI DUYỆT) LÀ ẨN NGAY
         if (currentFilter === 'today') {
           if (t.completed) return false;
           return t.dueDate && t.dueDate <= todayStr;
