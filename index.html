@@ -19,57 +19,57 @@
 <body class="min-h-screen pb-12 select-none">
 
   <!-- Header -->
-  <header class="bg-slate-900/90 backdrop-blur border-b border-slate-800 p-4 sticky top-0 z-30 shadow-lg">
+  <header class="bg-slate-900/90 backdrop-blur border-b border-slate-800 p-3 sticky top-0 z-30 shadow-lg">
     <div class="max-w-md mx-auto flex justify-between items-center">
       <div>
-        <h1 class="text-lg font-bold text-indigo-400 tracking-wide">QUẢN LÝ NHIỆM VỤ</h1>
-        <div id="cloud-status" class="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+        <h1 class="text-base font-bold text-indigo-400 tracking-wide">QUẢN LÝ NHIỆM VỤ</h1>
+        <div id="cloud-status" class="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5">
           <span class="w-2 h-2 rounded-full bg-amber-500 inline-block animate-pulse" id="status-dot"></span>
           <span id="status-text">Đang kết nối Cloud...</span>
         </div>
       </div>
-      <button onclick="exportTXT()" class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs px-3.5 py-2 rounded-xl font-medium shadow-md transition">
+      <button onclick="exportTXT()" class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs px-3 py-1.5 rounded-xl font-medium shadow transition">
         📄 Xuất TXT
       </button>
     </div>
   </header>
 
-  <main class="max-w-md mx-auto p-4 space-y-4">
+  <main class="max-w-md mx-auto p-3 space-y-3">
     
     <!-- Bộ Lọc Danh Sách Task -->
-    <div class="bg-slate-800/80 p-1 rounded-2xl border border-slate-700/60 flex text-xs font-semibold">
-      <button id="filter-today" onclick="setFilter('today')" class="flex-1 py-2.5 text-center rounded-xl bg-indigo-600 text-white shadow">Hôm Nay</button>
-      <button id="filter-week" onclick="setFilter('week')" class="flex-1 py-2.5 text-center rounded-xl text-slate-400 hover:text-white transition">Tuần Này</button>
-      <button id="filter-month" onclick="setFilter('month')" class="flex-1 py-2.5 text-center rounded-xl text-slate-400 hover:text-white transition">Tháng Này</button>
-      <button id="filter-all" onclick="setFilter('all')" class="flex-1 py-2.5 text-center rounded-xl text-slate-400 hover:text-white transition">Tất Cả</button>
+    <div class="bg-slate-800/80 p-1 rounded-xl border border-slate-700/60 flex text-xs font-semibold">
+      <button id="filter-today" onclick="setFilter('today')" class="flex-1 py-1.5 text-center rounded-lg bg-indigo-600 text-white shadow">Hôm Nay</button>
+      <button id="filter-week" onclick="setFilter('week')" class="flex-1 py-1.5 text-center rounded-lg text-slate-400 hover:text-white transition">Tuần Này</button>
+      <button id="filter-month" onclick="setFilter('month')" class="flex-1 py-1.5 text-center rounded-lg text-slate-400 hover:text-white transition">Tháng Này</button>
+      <button id="filter-all" onclick="setFilter('all')" class="flex-1 py-1.5 text-center rounded-lg text-slate-400 hover:text-white transition">Tất Cả</button>
     </div>
 
     <!-- Nút Thêm Mới -->
-    <button onclick="toggleModal(true)" class="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 active:scale-[0.98] text-white py-3.5 px-4 rounded-2xl font-bold shadow-lg shadow-indigo-900/30 flex items-center justify-center gap-2 text-sm transition">
-      <span class="text-lg">+</span> Thêm Nhiệm Vụ Mới
+    <button onclick="toggleModal(true)" class="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 active:scale-[0.98] text-white py-2.5 px-3 rounded-xl font-bold shadow-md flex items-center justify-center gap-1.5 text-xs transition">
+      <span class="text-base">+</span> Thêm Nhiệm Vụ Mới
     </button>
 
-    <!-- Danh sách Nhiệm vụ -->
-    <div id="task-list" class="space-y-3"></div>
+    <!-- Danh sách Nhiệm vụ siêu gọn -->
+    <div id="task-list" class="space-y-1.5"></div>
 
     <!-- Khối Thống Kê Tiến Độ Nâng Cao -->
-    <div class="bg-slate-800/60 border border-slate-700/50 rounded-2xl p-4 space-y-3 mt-6">
-      <div class="flex justify-between items-center border-b border-slate-700/50 pb-2.5">
-        <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+    <div class="bg-slate-800/60 border border-slate-700/50 rounded-2xl p-3 space-y-2 mt-4">
+      <div class="flex justify-between items-center border-b border-slate-700/50 pb-2">
+        <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1">
           <span>📊 THỐNG KÊ TIẾN ĐỘ</span>
         </h3>
-        <div class="flex items-center gap-2">
-          <select id="stat-range-select" onchange="renderItemStats()" class="bg-slate-900 text-indigo-300 border border-indigo-500/40 rounded-lg px-2 py-1 text-xs font-bold outline-none cursor-pointer">
+        <div class="flex items-center gap-1.5">
+          <select id="stat-range-select" onchange="renderItemStats()" class="bg-slate-900 text-indigo-300 border border-indigo-500/40 rounded-lg px-2 py-0.5 text-xs font-bold outline-none cursor-pointer">
             <option value="today">Hôm nay</option>
             <option value="week" selected>Tuần này</option>
             <option value="month">Tháng này</option>
             <option value="all">Tất cả</option>
           </select>
-          <span id="stat-total-percent" class="text-xs font-black text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-2 py-1 rounded-lg">0%</span>
+          <span id="stat-total-percent" class="text-xs font-black text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-2 py-0.5 rounded-lg">0%</span>
         </div>
       </div>
       
-      <div id="stat-items-container" class="space-y-2.5 text-xs"></div>
+      <div id="stat-items-container" class="space-y-2 text-xs"></div>
     </div>
 
   </main>
@@ -158,7 +158,6 @@
     let tasks = JSON.parse(localStorage.getItem('tasks_data')) || [];
     let currentFilter = 'today';
     let db = null;
-    let tempSliderValues = {};
 
     window.onload = function() {
       initFirebase();
@@ -265,6 +264,7 @@
         type: type,
         progress: oldTask ? oldTask.progress : 0,
         completed: oldTask ? oldTask.completed : false,
+        starred: oldTask ? (oldTask.starred || false) : false,
         repeat: repeat,
         repeatMonths: customMonths,
         logs: oldTask ? (oldTask.logs || {}) : {},
@@ -279,23 +279,27 @@
       renderTasks();
     }
 
-    function handleSliderChange(id, val) {
-      tempSliderValues[id] = parseInt(val);
-      const label = document.getElementById(`percent-val-${id}`);
-      if (label) label.innerText = `${val}%`;
+    function toggleStar(id, e) {
+      e.stopPropagation();
+      const task = tasks.find(t => t.id === id);
+      if (task) {
+        task.starred = !task.starred;
+        saveData();
+        renderTasks();
+      }
     }
 
-    function applyPercentOK(id) {
-      const task = tasks.find(t => t.id === id);
-      if (!task) return;
+    function moveTask(index, direction, e) {
+      e.stopPropagation();
+      const newIndex = index + direction;
+      if (newIndex < 0 || newIndex >= tasks.length) return;
 
-      const val = tempSliderValues[id] !== undefined ? tempSliderValues[id] : task.progress;
-      
-      if (val === 0) {
-        updateProgress(id, 0, false);
-      } else {
-        updateProgress(id, val, true);
-      }
+      const temp = tasks[index];
+      tasks[index] = tasks[newIndex];
+      tasks[newIndex] = temp;
+
+      saveData();
+      renderTasks();
     }
 
     function updateProgress(id, value, isChecked = null) {
@@ -325,7 +329,8 @@
       renderTasks();
     }
 
-    function deleteTask(id) {
+    function deleteTask(id, e) {
+      e.stopPropagation();
       if (confirm('Bạn muốn xóa nhiệm vụ này?')) {
         tasks = tasks.filter(t => t.id !== id);
         saveData();
@@ -333,7 +338,8 @@
       }
     }
 
-    function editTask(id) {
+    function editTask(id, e) {
+      e.stopPropagation();
       const task = tasks.find(t => t.id === id);
       if (!task) return;
 
@@ -354,8 +360,8 @@
       ['today', 'week', 'month', 'all'].forEach(f => {
         const btn = document.getElementById(`filter-${f}`);
         btn.className = (f === filter) 
-          ? 'flex-1 py-2.5 text-center rounded-xl bg-indigo-600 text-white shadow font-semibold'
-          : 'flex-1 py-2.5 text-center rounded-xl text-slate-400 hover:text-white transition font-medium';
+          ? 'flex-1 py-1.5 text-center rounded-lg bg-indigo-600 text-white shadow font-semibold'
+          : 'flex-1 py-1.5 text-center rounded-lg text-slate-400 hover:text-white transition font-medium';
       });
       renderTasks();
     }
@@ -365,6 +371,9 @@
       listEl.innerHTML = '';
 
       const todayStr = new Date().toISOString().split('T')[0];
+
+      // Sắp xếp: Ưu tiên Task đánh dấu sao (⭐) lên đầu
+      tasks.sort((a, b) => (b.starred ? 1 : 0) - (a.starred ? 1 : 0));
 
       const filtered = tasks.filter(t => {
         if (currentFilter === 'today') {
@@ -393,66 +402,51 @@
 
       if (filtered.length === 0) {
         listEl.innerHTML = `
-          <div class="text-center py-12 bg-slate-800/40 rounded-2xl border border-slate-700/40">
-            <p class="text-3xl mb-2">🎉</p>
-            <p class="text-xs text-slate-400 font-medium">Không có nhiệm vụ nào cần làm!</p>
+          <div class="text-center py-8 bg-slate-800/40 rounded-xl border border-slate-700/40">
+            <p class="text-2xl mb-1">🎉</p>
+            <p class="text-xs text-slate-400 font-medium">Không có nhiệm vụ nào!</p>
           </div>`;
         return;
       }
 
-      const repeatLabels = {
-        'daily': 'Hàng ngày',
-        'weekly': 'Hàng tuần',
-        'monthly': 'Hàng tháng',
-        'custom_month': 'Sau X tháng',
-        'yearly': 'Hàng năm'
-      };
-
-      filtered.forEach(task => {
+      filtered.forEach((task, index) => {
         const item = document.createElement('div');
-        item.className = `bg-slate-800 border border-slate-700/80 p-4 rounded-2xl shadow-sm space-y-3 transition-all ${task.completed ? 'opacity-50 bg-slate-900/40 border-slate-800' : ''}`;
+        item.className = `bg-slate-800/90 border border-slate-700/80 px-3 py-2 rounded-xl flex items-center justify-between gap-2 shadow-sm transition-all ${task.completed ? 'opacity-40 bg-slate-900/40' : ''} ${task.starred ? 'border-amber-500/50 bg-slate-800' : ''}`;
         
-        let repeatBadge = '';
-        if (task.repeat && task.repeat !== 'none') {
-          const label = task.repeat === 'custom_month' ? `Mỗi ${task.repeatMonths} tháng` : repeatLabels[task.repeat];
-          repeatBadge = `<span class="bg-indigo-950/60 text-indigo-400 border border-indigo-800/50 text-[10px] px-2 py-0.5 rounded-md font-medium">🔁 ${label}</span>`;
-        }
-
         let controlHTML = '';
         if (task.type === 'check') {
           controlHTML = `
-            <label class="flex items-center gap-3 cursor-pointer">
-              <input type="checkbox" ${task.completed ? 'checked' : ''} onchange="updateProgress('${task.id}', 0, this.checked)" class="w-5 h-5 accent-indigo-500 rounded cursor-pointer">
-              <span class="text-sm font-semibold ${task.completed ? 'line-through text-slate-500 font-normal' : 'text-slate-100'}">${task.title}</span>
-            </label>
+            <input type="checkbox" ${task.completed ? 'checked' : ''} onchange="updateProgress('${task.id}', 0, this.checked)" class="w-4 h-4 accent-indigo-500 rounded cursor-pointer shrink-0">
           `;
         } else {
-          tempSliderValues[task.id] = task.progress;
           controlHTML = `
-            <div class="space-y-2">
-              <div class="flex justify-between items-center">
-                <span class="text-sm font-semibold ${task.completed ? 'line-through text-slate-500 font-normal' : 'text-slate-100'}">${task.title}</span>
-                <span id="percent-val-${task.id}" class="text-xs font-bold text-indigo-400">${task.progress}%</span>
-              </div>
-              <div class="flex items-center gap-3">
-                <input type="range" min="0" max="100" value="${task.progress}" oninput="handleSliderChange('${task.id}', this.value)" class="w-full accent-indigo-500 h-2 bg-slate-700 rounded-lg cursor-pointer">
-                <button onclick="applyPercentOK('${task.id}')" class="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow transition">Duyệt OK</button>
-              </div>
-            </div>
+            <input type="checkbox" ${task.completed ? 'checked' : ''} onchange="updateProgress('${task.id}', ${task.completed ? 0 : 100}, this.checked)" class="w-4 h-4 accent-indigo-500 rounded cursor-pointer shrink-0">
           `;
         }
 
         item.innerHTML = `
-          <div class="flex justify-between items-start gap-2">
-            <div class="flex-1">${controlHTML}</div>
-            <div class="flex gap-1 -mr-1">
-              <button onclick="editTask('${task.id}')" class="text-slate-400 hover:text-indigo-400 p-1">✏️</button>
-              <button onclick="deleteTask('${task.id}')" class="text-slate-400 hover:text-red-400 p-1">🗑️</button>
+          <!-- Khối bên trái: Nút kéo lên/xuống + Checkbox + Tên Task -->
+          <div class="flex items-center gap-2 min-w-0 flex-1">
+            <div class="flex flex-col text-[10px] text-slate-500 leading-none shrink-0">
+              <button onclick="moveTask(${index}, -1, event)" class="hover:text-indigo-400 p-0.5">▲</button>
+              <button onclick="moveTask(${index}, 1, event)" class="hover:text-indigo-400 p-0.5">▼</button>
             </div>
+            ${controlHTML}
+            <span class="text-xs font-semibold truncate ${task.completed ? 'line-through text-slate-500' : 'text-slate-100'}">
+              ${task.title}
+            </span>
           </div>
-          <div class="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-700/50">
-            <span>📅 Hạn: ${task.dueDate || 'Không hạn'}</span>
-            ${repeatBadge}
+
+          <!-- Khối bên phải: Hạn + Nút Sao + Sửa/Xóa -->
+          <div class="flex items-center gap-2 shrink-0 text-xs">
+            <span class="text-[10px] text-slate-400 hidden sm:inline">${task.dueDate ? task.dueDate.slice(5) : ''}</span>
+            
+            <button onclick="toggleStar('${task.id}', event)" class="text-sm transition active:scale-125">
+              ${task.starred ? '⭐' : '☆'}
+            </button>
+            
+            <button onclick="editTask('${task.id}', event)" class="text-slate-400 hover:text-indigo-400 text-xs">✏️</button>
+            <button onclick="deleteTask('${task.id}', event)" class="text-slate-400 hover:text-red-400 text-xs">🗑️</button>
           </div>
         `;
         listEl.appendChild(item);
@@ -511,7 +505,7 @@
       container.innerHTML = '';
 
       if (tasks.length === 0) {
-        container.innerHTML = `<div class="text-slate-500 text-center py-2">Chưa có dữ liệu thống kê</div>`;
+        container.innerHTML = `<div class="text-slate-500 text-center py-1">Chưa có dữ liệu thống kê</div>`;
         document.getElementById('stat-total-percent').innerText = '0%';
         return;
       }
@@ -523,20 +517,16 @@
         totalPercentSum += stats.percent;
 
         const statRow = document.createElement('div');
-        statRow.className = 'bg-slate-900/60 hover:bg-slate-900/90 p-3 rounded-xl border border-slate-700/40 space-y-1.5 cursor-pointer transition active:scale-[0.99]';
+        statRow.className = 'bg-slate-900/60 hover:bg-slate-900/90 p-2 rounded-lg border border-slate-700/40 space-y-1 cursor-pointer transition active:scale-[0.99]';
         statRow.onclick = () => openHistoryModal(t.id);
 
         statRow.innerHTML = `
           <div class="flex justify-between items-center text-slate-200">
-            <span class="font-semibold flex items-center gap-1.5">${t.title} <span class="text-[10px] text-indigo-400">🔍 (Bấm xem)</span></span>
+            <span class="font-semibold flex items-center gap-1">${t.starred ? '⭐' : ''}${t.title} <span class="text-[9px] text-indigo-400">🔍</span></span>
             <span class="font-black ${stats.percent === 100 ? 'text-emerald-400' : 'text-indigo-400'}">${stats.percent}%</span>
           </div>
-          <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+          <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
             <div class="${stats.percent === 100 ? 'bg-emerald-500' : 'bg-indigo-500'} h-full transition-all duration-300" style="width: ${stats.percent}%"></div>
-          </div>
-          <div class="flex justify-between text-[10px] text-slate-400 pt-0.5">
-            <span>Chu kỳ: ${t.repeat || 'Không'}</span>
-            <span>Đã làm: ${stats.doneCount} ngày</span>
           </div>
         `;
         container.appendChild(statRow);
@@ -583,7 +573,7 @@
         const isDone = val !== undefined && val > 0;
 
         const dayItem = document.createElement('label');
-        dayItem.className = `flex justify-between items-center p-2.5 rounded-xl border ${isDone ? 'bg-emerald-950/40 border-emerald-800/50 text-emerald-200' : 'bg-slate-900 border-slate-700/50 text-slate-300'} cursor-pointer`;
+        dayItem.className = `flex justify-between items-center p-2 rounded-xl border ${isDone ? 'bg-emerald-950/40 border-emerald-800/50 text-emerald-200' : 'bg-slate-900 border-slate-700/50 text-slate-300'} cursor-pointer`;
         dayItem.innerHTML = `
           <span>${i === 0 ? 'Hôm nay' : (i === 1 ? 'Hôm qua' : dateStr)} (${dateStr})</span>
           <div class="flex items-center gap-2">
@@ -644,7 +634,7 @@
       txt += `📌 THỐNG KÊ CHI TIẾT TỪNG MỤC (TUẦN NÀY):\n`;
       tasks.forEach((t, i) => {
         const stats = getTaskStatsByRange(t, 'week');
-        txt += `${i + 1}. ${t.title}\n`;
+        txt += `${i + 1}. ${t.starred ? '[⭐ ƯU TIÊN] ' : ''}${t.title}\n`;
         txt += `   - Chu kỳ lặp     : ${t.repeat || 'Không'}\n`;
         txt += `   - Hạn tiếp theo  : ${t.dueDate || 'Không hạn'}\n`;
         txt += `   - Tiến độ tuần   : ${stats.percent}%\n`;
