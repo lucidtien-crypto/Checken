@@ -149,14 +149,14 @@
 
   <script>
     const firebaseConfig = {
-  apiKey: "AIzaSyC03AZRspyjaVN-mfN9m4RNYSFYuCHaoqQ",
-  authDomain: "deutschlernen-80785.firebaseapp.com",
-  projectId: "deutschlernen-80785",
-  storageBucket: "deutschlernen-80785.firebasestorage.app",
-  messagingSenderId: "258723517724",
-  appId: "1:258723517724:web:a02ef75ed5883ac34d56d9",
-  measurementId: "G-04G40JD6TK"
-};
+      apiKey: "AIzaSyC03AZRspyjaVN-mfN9m4RNYSFYuCHaoqQ",
+      authDomain: "deutschlernen-80785.firebaseapp.com",
+      projectId: "deutschlernen-80785",
+      storageBucket: "deutschlernen-80785.firebasestorage.app",
+      messagingSenderId: "258723517724",
+      appId: "1:258723517724:web:a02ef75ed5883ac34d56d9",
+      measurementId: "G-04G40JD6TK"
+    };
 
     let tasks = JSON.parse(localStorage.getItem('tasks_data')) || [];
     let currentFilter = 'today';
@@ -189,21 +189,23 @@
       try {
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         
-        // Xác thực ẩn danh tự động để vượt qua Firestore Rules "request.auth != null"
         firebase.auth().signInAnonymously()
           .then(() => {
             db = firebase.firestore();
             document.getElementById('status-dot').className = 'w-2 h-2 rounded-full bg-emerald-400 inline-block';
             document.getElementById('status-text').innerText = 'Cloud Auto-Sync Active (Secured)';
 
+            // Lắng nghe realtime từ Firestore
             db.collection('app_tasks').doc('main_list').onSnapshot(doc => {
-              if (doc.exists && doc.data().tasks) {
+              if (doc.exists && doc.data() && doc.data().tasks) {
                 tasks = doc.data().tasks;
                 localStorage.setItem('tasks_data', JSON.stringify(tasks));
                 checkAutoResetNewDay();
                 renderTasks();
               }
-            }, err => console.warn("Lỗi Firestore:", err));
+            }, err => {
+              console.warn("Lỗi Firestore:", err);
+            });
           })
           .catch(err => {
             console.warn("Lỗi Auth Ẩn Danh:", err);
@@ -219,8 +221,12 @@
 
     function saveData() {
       localStorage.setItem('tasks_data', JSON.stringify(tasks));
-      if (db) {
-        db.collection('app_tasks').doc('main_list').set({ tasks: tasks })
+      if (db && firebase.auth().currentUser) {
+        db.collection('app_tasks').doc('main_list').set({ tasks: tasks }, { merge: true })
+          .then(() => {
+            document.getElementById('status-dot').className = 'w-2 h-2 rounded-full bg-emerald-400 inline-block';
+            document.getElementById('status-text').innerText = 'Cloud Auto-Sync Active (Secured)';
+          })
           .catch(err => console.error("Lỗi đồng bộ Firebase:", err));
       }
     }
@@ -649,7 +655,7 @@
       });
       txt += `\n`;
 
-      txt += `📌 THỐNG KÊ CHI TIẾT TỪNG MỤC (TUẦN NÀY):\n`;
+      txt += `📌 THỐNG KÊ (TUẦN NÀY):\n`;
       tasks.forEach((t, i) => {
         const stats = getTaskStatsByRange(t, 'week');
         txt += `${i + 1}. ${t.title}\n`;
