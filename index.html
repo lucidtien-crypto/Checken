@@ -6,7 +6,6 @@
   <title>Quản Lý Nhiệm Vụ</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <style>
     body {
@@ -59,7 +58,6 @@
         <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
           <span>📊 THỐNG KÊ TIẾN ĐỘ</span>
         </h3>
-        <!-- Menu Lựa Chọn Khung Thời Gian Thống Kê -->
         <div class="flex items-center gap-2">
           <select id="stat-range-select" onchange="renderItemStats()" class="bg-slate-900 text-indigo-300 border border-indigo-500/40 rounded-lg px-2 py-1 text-xs font-bold outline-none cursor-pointer">
             <option value="today">Hôm nay</option>
@@ -71,7 +69,6 @@
         </div>
       </div>
       
-      <!-- Danh sách hiển thị trực quan tiến độ từng mục -->
       <div id="stat-items-container" class="space-y-2.5 text-xs"></div>
     </div>
 
@@ -189,29 +186,22 @@
       try {
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         
-        firebase.auth().signInAnonymously()
-          .then(() => {
-            db = firebase.firestore();
-            document.getElementById('status-dot').className = 'w-2 h-2 rounded-full bg-emerald-400 inline-block';
-            document.getElementById('status-text').innerText = 'Cloud Auto-Sync Active (Secured)';
+        db = firebase.firestore();
+        document.getElementById('status-dot').className = 'w-2 h-2 rounded-full bg-emerald-400 inline-block';
+        document.getElementById('status-text').innerText = 'Cloud Auto-Sync Active';
 
-            // Lắng nghe realtime từ Firestore
-            db.collection('app_tasks').doc('main_list').onSnapshot(doc => {
-              if (doc.exists && doc.data() && doc.data().tasks) {
-                tasks = doc.data().tasks;
-                localStorage.setItem('tasks_data', JSON.stringify(tasks));
-                checkAutoResetNewDay();
-                renderTasks();
-              }
-            }, err => {
-              console.warn("Lỗi Firestore:", err);
-            });
-          })
-          .catch(err => {
-            console.warn("Lỗi Auth Ẩn Danh:", err);
-            document.getElementById('status-text').innerText = 'Lưu Local (Offline)';
-            document.getElementById('status-dot').className = 'w-2 h-2 rounded-full bg-slate-500 inline-block';
-          });
+        db.collection('app_tasks').doc('main_list').onSnapshot(doc => {
+          if (doc.exists && doc.data() && doc.data().tasks) {
+            tasks = doc.data().tasks;
+            localStorage.setItem('tasks_data', JSON.stringify(tasks));
+            checkAutoResetNewDay();
+            renderTasks();
+          }
+        }, err => {
+          console.warn("Lỗi Firestore:", err);
+          document.getElementById('status-text').innerText = 'Lưu Local (Offline)';
+          document.getElementById('status-dot').className = 'w-2 h-2 rounded-full bg-slate-500 inline-block';
+        });
 
       } catch (e) {
         document.getElementById('status-text').innerText = 'Lưu Local (Offline)';
@@ -221,12 +211,8 @@
 
     function saveData() {
       localStorage.setItem('tasks_data', JSON.stringify(tasks));
-      if (db && firebase.auth().currentUser) {
+      if (db) {
         db.collection('app_tasks').doc('main_list').set({ tasks: tasks }, { merge: true })
-          .then(() => {
-            document.getElementById('status-dot').className = 'w-2 h-2 rounded-full bg-emerald-400 inline-block';
-            document.getElementById('status-text').innerText = 'Cloud Auto-Sync Active (Secured)';
-          })
           .catch(err => console.error("Lỗi đồng bộ Firebase:", err));
       }
     }
@@ -655,7 +641,7 @@
       });
       txt += `\n`;
 
-      txt += `📌 THỐNG KÊ (TUẦN NÀY):\n`;
+      txt += `📌 THỐNG KÊ CHI TIẾT TỪNG MỤC (TUẦN NÀY):\n`;
       tasks.forEach((t, i) => {
         const stats = getTaskStatsByRange(t, 'week');
         txt += `${i + 1}. ${t.title}\n`;
