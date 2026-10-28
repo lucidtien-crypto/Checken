@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Quản Lý Nhiệm Vụ</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+  <style>
+    body {
+      touch-action: manipulation;
+      background-color: #0f172a;
+      color: #f8fafc;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+  </style>
+</head>
+<body class="min-h-screen pb-12 select-none">
+
+  <!-- Header -->
+  <header class="bg-slate-900/90 backdrop-blur border-b border-slate-800 p-4 sticky top-0 z-30 shadow-lg">
+    <div class="max-w-md mx-auto flex justify-between items-center">
+      <div>
+        <h1 class="text-lg font-bold text-indigo-400 tracking-wide">QUẢN LÝ NHIỆM VỤ</h1>
+        <div id="cloud-status" class="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+          <span class="w-2 h-2 rounded-full bg-amber-500 inline-block animate-pulse" id="status-dot"></span>
+          <span id="status-text">Đang kết nối Cloud...</span>
+        </div>
+      </div>
+      <button onclick="exportTXT()" class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs px-3.5 py-2 rounded-xl font-medium shadow-md transition">
+        📄 Xuất TXT
+      </button>
+    </div>
+  </header>
+
+  <main class="max-w-md mx-auto p-4 space-y-4">
+    
+    <!-- Bộ Lọc Danh Sách Task -->
+    <div class="bg-slate-800/80 p-1 rounded-2xl border border-slate-700/60 flex text-xs font-semibold">
+      <button id="filter-today" onclick="setFilter('today')" class="flex-1 py-2.5 text-center rounded-xl bg-indigo-600 text-white shadow">Hôm Nay</button>
+      <button id="filter-week" onclick="setFilter('week')" class="flex-1 py-2.5 text-center rounded-xl text-slate-400 hover:text-white transition">Tuần Này</button>
+      <button id="filter-month" onclick="setFilter('month')" class="flex-1 py-2.5 text-center rounded-xl text-slate-400 hover:text-white transition">Tháng Này</button>
+      <button id="filter-all" onclick="setFilter('all')" class="flex-1 py-2.5 text-center rounded-xl text-slate-400 hover:text-white transition">Tất Cả</button>
+    </div>
+
+    <!-- Nút Thêm Mới -->
+    <button onclick="toggleModal(true)" class="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 active:scale-[0.98] text-white py-3.5 px-4 rounded-2xl font-bold shadow-lg shadow-indigo-900/30 flex items-center justify-center gap-2 text-sm transition">
+      <span class="text-lg">+</span> Thêm Nhiệm Vụ Mới
+    </button>
+
+    <!-- Danh sách Nhiệm vụ -->
+    <div id="task-list" class="space-y-3"></div>
+
+    <!-- Khối Thống Kê Tiến Độ Nâng Cao -->
+    <div class="bg-slate-800/60 border border-slate-700/50 rounded-2xl p-4 space-y-3 mt-6">
+      <div class="flex justify-between items-center border-b border-slate-700/50 pb-2.5">
+        <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+          <span>📊 THỐNG KÊ TIẾN ĐỘ</span>
+        </h3>
+        <!-- Menu Lựa Chọn Khung Thời Gian Thống Kê -->
+        <div class="flex items-center gap-2">
+          <select id="stat-range-select" onchange="renderItemStats()" class="bg-slate-900 text-indigo-300 border border-indigo-500/40 rounded-lg px-2 py-1 text-xs font-bold outline-none cursor-pointer">
+            <option value="today">Hôm nay</option>
+            <option value="week" selected>Tuần này</option>
+            <option value="month">Tháng này</option>
+            <option value="all">Tất cả</option>
+          </select>
+          <span id="stat-total-percent" class="text-xs font-black text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-2 py-1 rounded-lg">0%</span>
+        </div>
+      </div>
+      
+      <!-- Danh sách hiển thị trực quan tiến độ từng mục -->
+      <div id="stat-items-container" class="space-y-2.5 text-xs"></div>
+    </div>
+
+  </main>
+
+  <!-- Modal Thêm/Sửa Nhiệm Vụ -->
+  <div id="task-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-800 border border-slate-700 rounded-3xl w-full max-w-md p-5 space-y-4 shadow-2xl">
+      <div class="flex justify-between items-center border-b border-slate-700 pb-3">
+        <h3 id="modal-title" class="text-base font-bold text-white">Thêm Nhiệm Vụ</h3>
+        <button onclick="toggleModal(false)" class="text-slate-400 hover:text-white text-2xl font-bold px-2">&times;</button>
+      </div>
+
+      <input type="hidden" id="task-id">
+      
+      <div>
+        <label class="block text-xs font-semibold text-slate-300 mb-1">Tên nhiệm vụ</label>
+        <input type="text" id="task-title" placeholder="Nhập tên công việc..." class="w-full bg-slate-900 border border-slate-700 text-white rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Hạn hoàn thành</label>
+          <input type="date" id="task-date" class="w-full bg-slate-900 border border-slate-700 text-white rounded-xl p-2.5 text-xs outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Kiểu tiến độ</label>
+          <select id="task-type" class="w-full bg-slate-900 border border-slate-700 text-white rounded-xl p-2.5 text-xs outline-none">
+            <option value="check">Tích chéo (Check)</option>
+            <option value="percent">Phần trăm (%)</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-300 mb-1">Chu kỳ lặp lại</label>
+        <select id="task-repeat" onchange="toggleCustomMonthInput()" class="w-full bg-slate-900 border border-slate-700 text-white rounded-xl p-3 text-xs outline-none">
+          <option value="none">Không lặp lại</option>
+          <option value="daily">Hàng ngày</option>
+          <option value="weekly">Hàng tuần</option>
+          <option value="monthly">Hàng tháng</option>
+          <option value="custom_month">Sau mỗi X tháng...</option>
+          <option value="yearly">Hàng năm</option>
+        </select>
+      </div>
+
+      <div id="custom-month-container" class="hidden">
+        <label class="block text-xs font-semibold text-slate-300 mb-1">Số tháng lặp lại (X)</label>
+        <input type="number" id="task-repeat-months" min="1" max="60" value="2" class="w-full bg-slate-900 border border-slate-700 text-white rounded-xl p-2.5 text-xs outline-none">
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button onclick="toggleModal(false)" class="flex-1 bg-slate-700 text-slate-200 py-3 rounded-xl text-xs font-semibold">Hủy</button>
+        <button onclick="saveTask()" class="flex-1 bg-indigo-600 text-white py-3 rounded-xl text-xs font-semibold hover:bg-indigo-500">Lưu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Chi Tiết Lịch Sử / Tick Bù -->
+  <div id="history-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-800 border border-slate-700 rounded-3xl w-full max-w-md p-5 space-y-4 shadow-2xl max-h-[85vh] flex flex-col">
+      <div class="flex justify-between items-center border-b border-slate-700 pb-3">
+        <div>
+          <h3 id="history-modal-title" class="text-base font-bold text-white">Lịch Sử Làm Việc</h3>
+          <p class="text-[11px] text-slate-400">Tick chọn vào ngày để bổ sung nếu lỡ quên</p>
+        </div>
+        <button onclick="toggleHistoryModal(false)" class="text-slate-400 hover:text-white text-2xl font-bold px-2">&times;</button>
+      </div>
+
+      <div id="history-days-list" class="space-y-2 overflow-y-auto flex-1 pr-1 text-xs"></div>
+
+      <button onclick="toggleHistoryModal(false)" class="w-full bg-indigo-600 text-white py-3 rounded-xl text-xs font-semibold hover:bg-indigo-500 mt-2">Đóng</button>
+    </div>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDemoConfigKeyForUserFirestore",
+      authDomain: "user-task-app.firebaseapp.com",
+      projectId: "user-task-app",
+      storageBucket: "user-task-app.appspot.com",
+      messagingSenderId: "1234567890",
+      appId: "1:1234567890:web:demoapp"
+    };
+
+    let tasks = JSON.parse(localStorage.getItem('tasks_data')) || [];
+    let currentFilter = 'today';
+    let db = null;
+    let tempSliderValues = {};
+
+    window.onload = function() {
+      initFirebase();
+      checkAutoResetNewDay();
+      renderTasks();
+      document.getElementById('task-date').valueAsDate = new Date();
+    };
+
+    function checkAutoResetNewDay() {
+      const todayStr = new Date().toISOString().split('T')[0];
+      let hasChange = false;
+
+      tasks.forEach(t => {
+        if (t.repeat !== 'none' && t.lastDoneDate && t.lastDoneDate !== todayStr) {
+          t.completed = false;
+          t.progress = 0;
+          hasChange = true;
+        }
+      });
+
+      if (hasChange) saveData();
+    }
+
+    function initFirebase() {
+      try {
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        db = firebase.firestore();
+        
+        document.getElementById('status-dot').className = 'w-2 h-2 rounded-full bg-emerald-400 inline-block';
+        document.getElementById('status-text').innerText = 'Cloud Auto-Sync Active';
+
+        db.collection('app_tasks').doc('main_list').onSnapshot(doc => {
+          if (doc.exists && doc.data().tasks) {
+            tasks = doc.data().tasks;
+            localStorage.setItem('tasks_data', JSON.stringify(tasks));
+            checkAutoResetNewDay();
+            renderTasks();
+          }
+        }, err => {
+          document.getElementById('status-text').innerText = 'Lưu Local (Offline)';
+          document.getElementById('status-dot').className = 'w-2 h-2 rounded-full bg-slate-500 inline-block';
+        });
+      } catch (e) {
+        document.getElementById('status-text').innerText = 'Lưu Local (Offline)';
+        document.getElementById('status-dot').className = 'w-2 h-2 rounded-full bg-slate-500 inline-block';
+      }
+    }
+
+    function saveData() {
+      localStorage.setItem('tasks_data', JSON.stringify(tasks));
+      if (db) {
+        db.collection('app_tasks').doc('main_list').set({ tasks: tasks })
+          .catch(err => console.error("Lỗi đồng bộ Firebase:", err));
+      }
+    }
+
+    function toggleModal(show) {
+      const el = document.getElementById('task-modal');
+      if (show) el.classList.remove('hidden');
+      else {
+        el.classList.add('hidden');
+        resetForm();
+      }
+    }
+
+    function resetForm() {
+      document.getElementById('task-id').value = '';
+      document.getElementById('task-title').value = '';
+      document.getElementById('task-type').value = 'check';
+      document.getElementById('task-repeat').value = 'none';
+      document.getElementById('task-repeat-months').value = '2';
+      document.getElementById('custom-month-container').classList.add('hidden');
+      document.getElementById('task-date').valueAsDate = new Date();
+      document.getElementById('modal-title').innerText = 'Thêm Nhiệm Vụ';
+    }
+
+    function toggleCustomMonthInput() {
+      const val = document.getElementById('task-repeat').value;
+      document.getElementById('custom-month-container').classList.toggle('hidden', val !== 'custom_month');
+    }
+
+    function saveTask() {
+      const id = document.getElementById('task-id').value || Date.now().toString();
+      const title = document.getElementById('task-title').value.trim();
+      const dueDate = document.getElementById('task-date').value;
+      const type = document.getElementById('task-type').value;
+      const repeat = document.getElementById('task-repeat').value;
+      const customMonths = parseInt(document.getElementById('task-repeat-months').value) || 1;
+
+      if (!title) {
+        alert('Vui lòng nhập tên nhiệm vụ!');
+        return;
+      }
+
+      const existingIndex = tasks.findIndex(t => t.id === id);
+      const oldTask = existingIndex > -1 ? tasks[existingIndex] : null;
+
+      const taskData = {
+        id: id,
+        title: title,
+        dueDate: dueDate,
+        type: type,
+        progress: oldTask ? oldTask.progress : 0,
+        completed: oldTask ? oldTask.completed : false,
+        repeat: repeat,
+        repeatMonths: customMonths,
+        logs: oldTask ? (oldTask.logs || {}) : {}, // Lưu dạng Object: { "2026-10-28": 50 }
+        lastDoneDate: oldTask ? oldTask.lastDoneDate : null
+      };
+
+      if (existingIndex > -1) tasks[existingIndex] = taskData;
+      else tasks.push(taskData);
+
+      saveData();
+      toggleModal(false);
+      renderTasks();
+    }
+
+    function handleSliderChange(id, val) {
+      tempSliderValues[id] = parseInt(val);
+      const label = document.getElementById(`percent-val-${id}`);
+      if (label) label.innerText = `${val}%`;
+    }
+
+    // ĐÃ CHỈNH SỬA LẠI: DUYỆT CẢ NHỮNG MỨC % DƯỚI 100%
+    function applyPercentOK(id) {
+      const task = tasks.find(t => t.id === id);
+      if (!task) return;
+
+      const val = tempSliderValues[id] !== undefined ? tempSliderValues[id] : task.progress;
+      
+      // Nếu chọn 0% thì coi như chưa làm
+      if (val === 0) {
+        updateProgress(id, 0, false);
+      } else {
+        // Dù dưới 100% (ví dụ 40%, 70%) bấm Duyệt OK vẫn chốt và tính là ĐÃ XONG TIẾN ĐỘ HÔM NAY
+        updateProgress(id, val, true);
+      }
+    }
+
+    function updateProgress(id, value, isChecked = null) {
+      const task = tasks.find(t => t.id === id);
+      if (!task) return;
+
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (!task.logs) task.logs = {};
+
+      if (task.type === 'check') {
+        task.completed = isChecked !== null ? isChecked : !task.completed;
+        task.progress = task.completed ? 100 : 0;
+      } else {
+        task.progress = parseInt(value);
+        // Khi dùng Slider: isChecked = true nghĩa là đã bấm Duyệt OK
+        task.completed = isChecked !== null ? isChecked : (task.progress > 0);
+      }
+
+      if (task.completed) {
+        task.lastDoneDate = todayStr;
+        task.logs[todayStr] = task.progress || 100;
+      } else {
+        delete task.logs[todayStr];
+        if (task.lastDoneDate === todayStr) task.lastDoneDate = null;
+      }
+
+      saveData();
+      renderTasks();
+    }
+
+    function deleteTask(id) {
+      if (confirm('Bạn muốn xóa nhiệm vụ này?')) {
+        tasks = tasks.filter(t => t.id !== id);
+        saveData();
+        renderTasks();
+      }
+    }
+
+    function editTask(id) {
+      const task = tasks.find(t => t.id === id);
+      if (!task) return;
+
+      document.getElementById('task-id').value = task.id;
+      document.getElementById('task-title').value = task.title;
+      document.getElementById('task-date').value = task.dueDate || '';
+      document.getElementById('task-type').value = task.type || 'check';
+      document.getElementById('task-repeat').value = task.repeat || 'none';
+      document.getElementById('task-repeat-months').value = task.repeatMonths || 2;
+      
+      toggleCustomMonthInput();
+      document.getElementById('modal-title').innerText = 'Chỉnh Sửa Nhiệm Vụ';
+      toggleModal(true);
+    }
+
+    function setFilter(filter) {
+      currentFilter = filter;
+      ['today', 'week', 'month', 'all'].forEach(f => {
+        const btn = document.getElementById(`filter-${f}`);
+        btn.className = (f === filter) 
+          ? 'flex-1 py-2.5 text-center rounded-xl bg-indigo-600 text-white shadow font-semibold'
+          : 'flex-1 py-2.5 text-center rounded-xl text-slate-400 hover:text-white transition font-medium';
+      });
+      renderTasks();
+    }
+
+    function renderTasks() {
+      const listEl = document.getElementById('task-list');
+      listEl.innerHTML = '';
+
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      const filtered = tasks.filter(t => {
+        // Tab Hôm nay, Tuần này, Tháng này: ĐÃ XONG (DÙ % BAO NHIÊU KHÁC 0 KHI DUYỆT) LÀ ẨN NGAY
+        if (currentFilter === 'today') {
+          if (t.completed) return false;
+          return t.dueDate && t.dueDate <= todayStr;
+        }
+
+        const d = new Date(t.dueDate);
+        const now = new Date();
+        
+        if (currentFilter === 'week') {
+          if (t.completed) return false;
+          const firstDay = new Date(now.setDate(now.getDate() - now.getDay() + 1));
+          const lastDay = new Date(now.setDate(now.getDate() - now.getDay() + 7));
+          return d >= firstDay && d <= lastDay;
+        }
+        if (currentFilter === 'month') {
+          if (t.completed) return false;
+          return d.getMonth() === new Date().getMonth() && d.getFullYear() === new Date().getFullYear();
+        }
+
+        return true;
+      });
+
+      renderItemStats();
+
+      if (filtered.length === 0) {
+        listEl.innerHTML = `
+          <div class="text-center py-12 bg-slate-800/40 rounded-2xl border border-slate-700/40">
+            <p class="text-3xl mb-2">🎉</p>
+            <p class="text-xs text-slate-400 font-medium">Không có nhiệm vụ nào cần làm!</p>
+          </div>`;
+        return;
+      }
+
+      const repeatLabels = {
+        'daily': 'Hàng ngày',
+        'weekly': 'Hàng tuần',
+        'monthly': 'Hàng tháng',
+        'custom_month': 'Sau X tháng',
+        'yearly': 'Hàng năm'
+      };
+
+      filtered.forEach(task => {
+        const item = document.createElement('div');
+        item.className = `bg-slate-800 border border-slate-700/80 p-4 rounded-2xl shadow-sm space-y-3 transition-all ${task.completed ? 'opacity-50 bg-slate-900/40 border-slate-800' : ''}`;
+        
+        let repeatBadge = '';
+        if (task.repeat && task.repeat !== 'none') {
+          const label = task.repeat === 'custom_month' ? `Mỗi ${task.repeatMonths} tháng` : repeatLabels[task.repeat];
+          repeatBadge = `<span class="bg-indigo-950/60 text-indigo-400 border border-indigo-800/50 text-[10px] px-2 py-0.5 rounded-md font-medium">🔁 ${label}</span>`;
+        }
+
+        let controlHTML = '';
+        if (task.type === 'check') {
+          controlHTML = `
+            <label class="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" ${task.completed ? 'checked' : ''} onchange="updateProgress('${task.id}', 0, this.checked)" class="w-5 h-5 accent-indigo-500 rounded cursor-pointer">
+              <span class="text-sm font-semibold ${task.completed ? 'line-through text-slate-500 font-normal' : 'text-slate-100'}">${task.title}</span>
+            </label>
+          `;
+        } else {
+          tempSliderValues[task.id] = task.progress;
+          controlHTML = `
+            <div class="space-y-2">
+              <div class="flex justify-between items-center">
+                <span class="text-sm font-semibold ${task.completed ? 'line-through text-slate-500 font-normal' : 'text-slate-100'}">${task.title}</span>
+                <span id="percent-val-${task.id}" class="text-xs font-bold text-indigo-400">${task.progress}%</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <input type="range" min="0" max="100" value="${task.progress}" oninput="handleSliderChange('${task.id}', this.value)" class="w-full accent-indigo-500 h-2 bg-slate-700 rounded-lg cursor-pointer">
+                <button onclick="applyPercentOK('${task.id}')" class="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow transition">Duyệt OK</button>
+              </div>
+            </div>
+          `;
+        }
+
+        item.innerHTML = `
+          <div class="flex justify-between items-start gap-2">
+            <div class="flex-1">${controlHTML}</div>
+            <div class="flex gap-1 -mr-1">
+              <button onclick="editTask('${task.id}')" class="text-slate-400 hover:text-indigo-400 p-1">✏️</button>
+              <button onclick="deleteTask('${task.id}')" class="text-slate-400 hover:text-red-400 p-1">🗑️</button>
+            </div>
+          </div>
+          <div class="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-700/50">
+            <span>📅 Hạn: ${task.dueDate || 'Không hạn'}</span>
+            ${repeatBadge}
+          </div>
+        `;
+        listEl.appendChild(item);
+      });
+    }
+
+    function getTaskStatsByRange(task, range) {
+      const logs = task.logs || {};
+      const now = new Date();
+      const todayStr = now.toISOString().split('T')[0];
+
+      let targetCount = 1;
+      let totalPercentSum = 0;
+
+      if (range === 'today') {
+        targetCount = 1;
+        totalPercentSum = logs[todayStr] || 0;
+      } else if (range === 'week') {
+        targetCount = task.repeat === 'daily' ? 7 : 1;
+        const dayOfWeek = now.getDay() || 7;
+        const monday = new Date(now);
+        monday.setDate(now.getDate() - dayOfWeek + 1);
+        const mondayStr = monday.toISOString().split('T')[0];
+        
+        Object.keys(logs).forEach(date => {
+          if (date >= mondayStr && date <= todayStr) {
+            totalPercentSum += (typeof logs[date] === 'number' ? logs[date] : 100);
+          }
+        });
+      } else if (range === 'month') {
+        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        targetCount = task.repeat === 'daily' ? daysInMonth : (task.repeat === 'weekly' ? 4 : 1);
+        const firstDayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+        
+        Object.keys(logs).forEach(date => {
+          if (date >= firstDayStr && date <= todayStr) {
+            totalPercentSum += (typeof logs[date] === 'number' ? logs[date] : 100);
+          }
+        });
+      } else {
+        const doneDates = Object.keys(logs);
+        targetCount = Math.max(doneDates.length, 1);
+        doneDates.forEach(date => {
+          totalPercentSum += (typeof logs[date] === 'number' ? logs[date] : 100);
+        });
+      }
+
+      const percent = Math.min(Math.round(totalPercentSum / targetCount), 100);
+      const doneCount = Object.keys(logs).length;
+      return { doneCount, targetCount, percent };
+    }
+
+    function renderItemStats() {
+      const container = document.getElementById('stat-items-container');
+      const selectedRange = document.getElementById('stat-range-select').value;
+      container.innerHTML = '';
+
+      if (tasks.length === 0) {
+        container.innerHTML = `<div class="text-slate-500 text-center py-2">Chưa có dữ liệu thống kê</div>`;
+        document.getElementById('stat-total-percent').innerText = '0%';
+        return;
+      }
+
+      let totalPercentSum = 0;
+
+      tasks.forEach(t => {
+        const stats = getTaskStatsByRange(t, selectedRange);
+        totalPercentSum += stats.percent;
+
+        const statRow = document.createElement('div');
+        statRow.className = 'bg-slate-900/60 hover:bg-slate-900/90 p-3 rounded-xl border border-slate-700/40 space-y-1.5 cursor-pointer transition active:scale-[0.99]';
+        statRow.onclick = () => openHistoryModal(t.id);
+
+        statRow.innerHTML = `
+          <div class="flex justify-between items-center text-slate-200">
+            <span class="font-semibold flex items-center gap-1.5">${t.title} <span class="text-[10px] text-indigo-400">🔍 (Bấm xem)</span></span>
+            <span class="font-black ${stats.percent === 100 ? 'text-emerald-400' : 'text-indigo-400'}">${stats.percent}%</span>
+          </div>
+          <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+            <div class="${stats.percent === 100 ? 'bg-emerald-500' : 'bg-indigo-500'} h-full transition-all duration-300" style="width: ${stats.percent}%"></div>
+          </div>
+          <div class="flex justify-between text-[10px] text-slate-400 pt-0.5">
+            <span>Chu kỳ: ${t.repeat || 'Không'}</span>
+            <span>Đã làm: ${stats.doneCount} ngày</span>
+          </div>
+        `;
+        container.appendChild(statRow);
+      });
+
+      const avgPercent = Math.round(totalPercentSum / tasks.length);
+      document.getElementById('stat-total-percent').innerText = `${avgPercent}%`;
+    }
+
+    let currentHistoryTaskId = null;
+
+    function openHistoryModal(taskId) {
+      currentHistoryTaskId = taskId;
+      const task = tasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      document.getElementById('history-modal-title').innerText = `Lịch Sử: ${task.title}`;
+      renderHistoryDays();
+      toggleHistoryModal(true);
+    }
+
+    function toggleHistoryModal(show) {
+      const el = document.getElementById('history-modal');
+      if (show) el.classList.remove('hidden');
+      else el.classList.add('hidden');
+    }
+
+    function renderHistoryDays() {
+      const listEl = document.getElementById('history-days-list');
+      listEl.innerHTML = '';
+
+      const task = tasks.find(t => t.id === currentHistoryTaskId);
+      if (!task) return;
+
+      if (!task.logs) task.logs = {};
+
+      const now = new Date();
+      
+      for (let i = 0; i < 14; i++) {
+        const d = new Date(now);
+        d.setDate(now.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
+        const val = task.logs[dateStr];
+        const isDone = val !== undefined && val > 0;
+
+        const dayItem = document.createElement('label');
+        dayItem.className = `flex justify-between items-center p-2.5 rounded-xl border ${isDone ? 'bg-emerald-950/40 border-emerald-800/50 text-emerald-200' : 'bg-slate-900 border-slate-700/50 text-slate-300'} cursor-pointer`;
+        dayItem.innerHTML = `
+          <span>${i === 0 ? 'Hôm nay' : (i === 1 ? 'Hôm qua' : dateStr)} (${dateStr})</span>
+          <div class="flex items-center gap-2">
+            ${isDone ? `<span class="text-[10px] font-bold text-emerald-400">${val}%</span>` : ''}
+            <input type="checkbox" ${isDone ? 'checked' : ''} onchange="toggleHistoryDate('${dateStr}', this.checked)" class="w-4 h-4 accent-emerald-500 rounded cursor-pointer">
+          </div>
+        `;
+        listEl.appendChild(dayItem);
+      }
+    }
+
+    function toggleHistoryDate(dateStr, isChecked) {
+      const task = tasks.find(t => t.id === currentHistoryTaskId);
+      if (!task) return;
+
+      if (!task.logs) task.logs = {};
+
+      if (isChecked) {
+        task.logs[dateStr] = 100;
+      } else {
+        delete task.logs[dateStr];
+      }
+
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (dateStr === todayStr) {
+        task.completed = isChecked;
+        task.progress = isChecked ? 100 : 0;
+      }
+
+      saveData();
+      renderHistoryDays();
+      renderTasks();
+    }
+
+    function exportTXT() {
+      if (tasks.length === 0) {
+        alert('Chưa có dữ liệu để xuất!');
+        return;
+      }
+
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      let txt = `=====================================\n`;
+      txt += `   BÁO CÁO TIẾN ĐỘ & NHIỆM VỤ\n`;
+      txt += `   Ngày xuất: ${new Date().toLocaleString('vi-VN')}\n`;
+      txt += `=====================================\n\n`;
+
+      txt += `📊 TỔNG QUAN TIẾN ĐỘ KHUNG THỜI GIAN:\n`;
+      ['today', 'week', 'month'].forEach(range => {
+        const rangeName = range === 'today' ? 'Hôm nay  ' : (range === 'week' ? 'Tuần này ' : 'Tháng này');
+        let sum = 0;
+        tasks.forEach(t => sum += getTaskStatsByRange(t, range).percent);
+        const avg = tasks.length > 0 ? Math.round(sum / tasks.length) : 0;
+        txt += `   - Tiến độ ${rangeName}: ${avg}%\n`;
+      });
+      txt += `\n`;
+
+      txt += `📌 THỐNG KÊ CHI TIẾT TỪNG MỤC (TUẦN NÀY):\n`;
+      tasks.forEach((t, i) => {
+        const stats = getTaskStatsByRange(t, 'week');
+        txt += `${i + 1}. ${t.title}\n`;
+        txt += `   - Chu kỳ lặp     : ${t.repeat || 'Không'}\n`;
+        txt += `   - Hạn tiếp theo  : ${t.dueDate || 'Không hạn'}\n`;
+        txt += `   - Tiến độ tuần   : ${stats.percent}%\n`;
+        txt += `-------------------------------------\n`;
+      });
+
+      const blob = new Blob([txt], { type: 'text/plain;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `BaoCao_TienDo_${todayStr}.txt`;
+      link.click();
+    }
+  </script>
+</body>
+</html>
