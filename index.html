@@ -35,7 +35,7 @@
   </header>
 
   <main class="max-w-md mx-auto p-3 space-y-3">
-    
+
     <!-- Bộ Lọc Danh Sách Task -->
     <div class="bg-slate-800/80 p-1 rounded-xl border border-slate-700/60 flex text-xs font-semibold">
       <button id="filter-today" onclick="setFilter('today')" class="flex-1 py-1.5 text-center rounded-lg bg-indigo-600 text-white shadow">Hôm Nay</button>
@@ -68,7 +68,7 @@
           <span id="stat-total-percent" class="text-xs font-black text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-2 py-0.5 rounded-lg">0%</span>
         </div>
       </div>
-      
+
       <div id="stat-items-container" class="space-y-2 text-xs"></div>
     </div>
 
@@ -83,7 +83,7 @@
       </div>
 
       <input type="hidden" id="task-id">
-      
+
       <div>
         <label class="block text-xs font-semibold text-slate-300 mb-1">Tên nhiệm vụ</label>
         <input type="text" id="task-title" placeholder="Nhập tên công việc..." class="w-full bg-slate-900 border border-slate-700 text-white rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
@@ -159,22 +159,101 @@
     let currentFilter = 'today';
     let db = null;
 
+    // Lấy chuỗi ngày YYYY-MM-DD chuẩn theo múi giờ địa phương của thiết bị
+    function getLocalDateStr(date = new Date()) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    // Chuyển chuỗi YYYY-MM-DD thành đối tượng Date 00:00:00 giờ địa phương
+    function parseLocalDate(dateStr) {
+      if (!dateStr) return null;
+      const [y, m, d] = dateStr.split('-').map(Number);
+      return new Date(y, m - 1, d);
+    }
+
+    // Cộng thêm X ngày vào chuỗi YYYY-MM-DD
+    function addDaysStr(dateStr, days) {
+      const d = parseLocalDate(dateStr) || new Date();
+      d.setDate(d.getDate() + days);
+      return getLocalDateStr(d);
+    }
+
+    // Cộng thêm X tháng vào chuỗi YYYY-MM-DD (xử lý an toàn ngày cuối tháng như 31 -> 28/29/30)
+    function addMonthsStr(dateStr, months) {
+      const d = parseLocalDate(dateStr) || new Date();
+      const targetDay = d.getDate();
+      d.setDate(1);
+      d.setMonth(d.getMonth() + months);
+      const maxDayInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      d.setDate(Math.min(targetDay, maxDayInMonth));
+      return getLocalDateStr(d);
+    }
+
     window.onload = function() {
       initFirebase();
       checkAutoResetNewDay();
       renderTasks();
-      document.getElementById('task-date').valueAsDate = new Date();
+      document.getElementById('task-date').value = getLocalDateStr();
     };
 
+    // Tự động kiểm tra qua ngày mới khi quay lại tab/ứng dụng trên điện thoại mà không cần tải lại trang
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        checkAutoResetNewDay();
+        renderTasks();
+      }
+    });
+
+    // Kiểm tra định kỳ mỗi phút phòng trường hợp mở ứng dụng xuyên qua 00:00
+    setInterval(() => {
+      checkAutoResetNewDay();
+      renderTasks();
+    }, 60000);
+
     function checkAutoResetNewDay() {
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = getLocalDateStr();
       let hasChange = false;
 
       tasks.forEach(t => {
-        if (t.repeat !== 'none' && t.lastDoneDate && t.lastDoneDate !== todayStr) {
-          t.completed = false;
-          t.progress = 0;
-          hasChange = true;
+        if (!t.repeat || t.repeat === 'none') return;
+
+        if (t.repeat === 'daily') {
+          if (t.completed && t.lastDoneDate && t.lastDoneDate !== todayStr) {
+            t.completed = false;
+            t.progress = 0;
+            hasChange = true;
+          }
+          if (!t.dueDate || t.dueDate < todayStr) {
+            t.dueDate = todayStr;
+            hasChange = true;
+          }
+        } else if (t.completed && t.lastDoneDate && t.lastDoneDate < todayStr) {
+          // Với lặp hàng tuần / hàng tháng / X tháng / hàng năm:
+          // Khi đã qua ngày hoàn thành và qua hạn hiện tại, tự động dời sang kỳ kế tiếp và mở khóa lại
+          const currentDue = t.dueDate || t.lastDoneDate;
+          if (todayStr > currentDue || t.lastDoneDate >= currentDue) {
+            let nextDue = currentDue;
+            const stepFn = (dStr) => {
+              if (t.repeat === 'weekly') return addDaysStr(dStr, 7);
+              if (t.repeat === 'monthly') return addMonthsStr(dStr, 1);
+              if (t.repeat === 'custom_month') return addMonthsStr(dStr, parseInt(t.repeatMonths) || 1);
+              if (t.repeat === 'yearly') return addMonthsStr(dStr, 12);
+              return dStr;
+            };
+
+            nextDue = stepFn(nextDue);
+            while (nextDue < todayStr) {
+              nextDue = stepFn(nextDue);
+            }
+
+            t.dueDate = nextDue;
+            t.completed = false;
+            t.progress = 0;
+            hasChange = true;
+          }
         }
       });
 
@@ -184,7 +263,7 @@
     function initFirebase() {
       try {
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-        
+
         db = firebase.firestore();
         document.getElementById('status-dot').className = 'w-2 h-2 rounded-full bg-emerald-400 inline-block';
         document.getElementById('status-text').innerText = 'Cloud Auto-Sync Active';
@@ -232,7 +311,7 @@
       document.getElementById('task-repeat').value = 'none';
       document.getElementById('task-repeat-months').value = '2';
       document.getElementById('custom-month-container').classList.add('hidden');
-      document.getElementById('task-date').valueAsDate = new Date();
+      document.getElementById('task-date').value = getLocalDateStr();
       document.getElementById('modal-title').innerText = 'Thêm Nhiệm Vụ';
     }
 
@@ -244,7 +323,7 @@
     function saveTask() {
       const id = document.getElementById('task-id').value || Date.now().toString();
       const title = document.getElementById('task-title').value.trim();
-      const dueDate = document.getElementById('task-date').value;
+      const dueDate = document.getElementById('task-date').value || getLocalDateStr();
       const type = document.getElementById('task-type').value;
       const repeat = document.getElementById('task-repeat').value;
       const customMonths = parseInt(document.getElementById('task-repeat-months').value) || 1;
@@ -289,10 +368,11 @@
       }
     }
 
-    function moveTask(index, direction, e) {
+    function moveTask(id, direction, e) {
       e.stopPropagation();
+      const index = tasks.findIndex(t => t.id === id);
       const newIndex = index + direction;
-      if (newIndex < 0 || newIndex >= tasks.length) return;
+      if (index < 0 || newIndex < 0 || newIndex >= tasks.length) return;
 
       const temp = tasks[index];
       tasks[index] = tasks[newIndex];
@@ -306,7 +386,7 @@
       const task = tasks.find(t => t.id === id);
       if (!task) return;
 
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = getLocalDateStr();
       if (!task.logs) task.logs = {};
 
       if (task.type === 'check') {
@@ -345,11 +425,11 @@
 
       document.getElementById('task-id').value = task.id;
       document.getElementById('task-title').value = task.title;
-      document.getElementById('task-date').value = task.dueDate || '';
+      document.getElementById('task-date').value = task.dueDate || getLocalDateStr();
       document.getElementById('task-type').value = task.type || 'check';
       document.getElementById('task-repeat').value = task.repeat || 'none';
       document.getElementById('task-repeat-months').value = task.repeatMonths || 2;
-      
+
       toggleCustomMonthInput();
       document.getElementById('modal-title').innerText = 'Chỉnh Sửa Nhiệm Vụ';
       toggleModal(true);
@@ -370,7 +450,13 @@
       const listEl = document.getElementById('task-list');
       listEl.innerHTML = '';
 
-      const todayStr = new Date().toISOString().split('T')[0];
+      const now = new Date();
+      const todayStr = getLocalDateStr(now);
+
+      // Tính thứ Hai đầu tuần và Chủ Nhật cuối tuần chuẩn theo giờ địa phương
+      const dayOfWeek = now.getDay() || 7; // Thứ 2 = 1 ... Chủ Nhật = 7
+      const weekEndStr = getLocalDateStr(new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek + 7));
+      const monthEndStr = getLocalDateStr(new Date(now.getFullYear(), now.getMonth() + 1, 0));
 
       // Sắp xếp: Ưu tiên Task đánh dấu sao (⭐) lên đầu
       tasks.sort((a, b) => (b.starred ? 1 : 0) - (a.starred ? 1 : 0));
@@ -378,21 +464,20 @@
       const filtered = tasks.filter(t => {
         if (currentFilter === 'today') {
           if (t.completed) return false;
+          if (t.repeat === 'daily') return true;
           return t.dueDate && t.dueDate <= todayStr;
         }
 
-        const d = new Date(t.dueDate);
-        const now = new Date();
-        
         if (currentFilter === 'week') {
           if (t.completed) return false;
-          const firstDay = new Date(now.setDate(now.getDate() - now.getDay() + 1));
-          const lastDay = new Date(now.setDate(now.getDate() - now.getDay() + 7));
-          return d >= firstDay && d <= lastDay;
+          if (t.repeat === 'daily') return true;
+          return t.dueDate && t.dueDate <= weekEndStr;
         }
+
         if (currentFilter === 'month') {
           if (t.completed) return false;
-          return d.getMonth() === new Date().getMonth() && d.getFullYear() === new Date().getFullYear();
+          if (t.repeat === 'daily') return true;
+          return t.dueDate && t.dueDate <= monthEndStr;
         }
 
         return true;
@@ -409,10 +494,10 @@
         return;
       }
 
-      filtered.forEach((task, index) => {
+      filtered.forEach((task) => {
         const item = document.createElement('div');
         item.className = `bg-slate-800/90 border border-slate-700/80 px-3 py-2 rounded-xl flex items-center justify-between gap-2 shadow-sm transition-all ${task.completed ? 'opacity-40 bg-slate-900/40' : ''} ${task.starred ? 'border-amber-500/50 bg-slate-800' : ''}`;
-        
+
         let controlHTML = '';
         if (task.type === 'check') {
           controlHTML = `
@@ -428,8 +513,8 @@
           <!-- Khối bên trái: Nút kéo lên/xuống + Checkbox + Tên Task -->
           <div class="flex items-center gap-2 min-w-0 flex-1">
             <div class="flex flex-col text-[10px] text-slate-500 leading-none shrink-0">
-              <button onclick="moveTask(${index}, -1, event)" class="hover:text-indigo-400 p-0.5">▲</button>
-              <button onclick="moveTask(${index}, 1, event)" class="hover:text-indigo-400 p-0.5">▼</button>
+              <button onclick="moveTask('${task.id}', -1, event)" class="hover:text-indigo-400 p-0.5">▲</button>
+              <button onclick="moveTask('${task.id}', 1, event)" class="hover:text-indigo-400 p-0.5">▼</button>
             </div>
             ${controlHTML}
             <span class="text-xs font-semibold truncate ${task.completed ? 'line-through text-slate-500' : 'text-slate-100'}">
@@ -456,7 +541,7 @@
     function getTaskStatsByRange(task, range) {
       const logs = task.logs || {};
       const now = new Date();
-      const todayStr = now.toISOString().split('T')[0];
+      const todayStr = getLocalDateStr(now);
 
       let targetCount = 1;
       let totalPercentSum = 0;
@@ -467,12 +552,11 @@
       } else if (range === 'week') {
         targetCount = task.repeat === 'daily' ? 7 : 1;
         const dayOfWeek = now.getDay() || 7;
-        const monday = new Date(now);
-        monday.setDate(now.getDate() - dayOfWeek + 1);
-        const mondayStr = monday.toISOString().split('T')[0];
-        
+        const mondayStr = getLocalDateStr(new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek + 1));
+        const sundayStr = getLocalDateStr(new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek + 7));
+
         Object.keys(logs).forEach(date => {
-          if (date >= mondayStr && date <= todayStr) {
+          if (date >= mondayStr && date <= sundayStr) {
             totalPercentSum += (typeof logs[date] === 'number' ? logs[date] : 100);
           }
         });
@@ -480,9 +564,10 @@
         const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
         targetCount = task.repeat === 'daily' ? daysInMonth : (task.repeat === 'weekly' ? 4 : 1);
         const firstDayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-        
+        const lastDayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+
         Object.keys(logs).forEach(date => {
-          if (date >= firstDayStr && date <= todayStr) {
+          if (date >= firstDayStr && date <= lastDayStr) {
             totalPercentSum += (typeof logs[date] === 'number' ? logs[date] : 100);
           }
         });
@@ -564,11 +649,10 @@
       if (!task.logs) task.logs = {};
 
       const now = new Date();
-      
+
       for (let i = 0; i < 14; i++) {
-        const d = new Date(now);
-        d.setDate(now.getDate() - i);
-        const dateStr = d.toISOString().split('T')[0];
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+        const dateStr = getLocalDateStr(d);
         const val = task.logs[dateStr];
         const isDone = val !== undefined && val > 0;
 
@@ -597,10 +681,11 @@
         delete task.logs[dateStr];
       }
 
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = getLocalDateStr();
       if (dateStr === todayStr) {
         task.completed = isChecked;
         task.progress = isChecked ? 100 : 0;
+        task.lastDoneDate = isChecked ? todayStr : null;
       }
 
       saveData();
@@ -614,7 +699,7 @@
         return;
       }
 
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = getLocalDateStr();
 
       let txt = `=====================================\n`;
       txt += `   BÁO CÁO TIẾN ĐỘ & NHIỆM VỤ\n`;
