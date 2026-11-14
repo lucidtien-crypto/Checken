@@ -61,7 +61,7 @@
         <div class="flex items-center gap-1.5">
           <select id="stat-range-select" onchange="renderItemStats()" class="bg-slate-900 text-indigo-300 border border-indigo-500/40 rounded-lg px-2 py-0.5 text-xs font-bold outline-none cursor-pointer">
             <option value="today">Hôm nay</option>
-            <option value="week" selected>Tuần này</option>
+            <option value="week" selected>Tuần này (T2–CN)</option>
             <option value="month">Tháng này</option>
             <option value="all">Tất cả</option>
           </select>
@@ -108,7 +108,7 @@
         <select id="task-repeat" onchange="toggleCustomMonthInput()" class="w-full bg-slate-900 border border-slate-700 text-white rounded-xl p-3 text-xs outline-none">
           <option value="none">Không lặp lại</option>
           <option value="daily">Hàng ngày</option>
-          <option value="weekly">Hàng tuần</option>
+          <option value="weekly">Hàng tuần (Thứ 2 – Chủ Nhật)</option>
           <option value="monthly">Hàng tháng</option>
           <option value="custom_month">Sau mỗi X tháng...</option>
           <option value="yearly">Hàng năm</option>
@@ -162,7 +162,7 @@
     const repeatLabels = {
       none: '1 lần',
       daily: 'Hàng ngày',
-      weekly: 'Hàng tuần',
+      weekly: 'Tuần (T2–CN)',
       monthly: 'Hàng tháng',
       custom_month: 'Theo tháng',
       yearly: 'Hàng năm'
@@ -181,6 +181,26 @@
       if (!dateStr) return null;
       const [y, m, d] = dateStr.split('-').map(Number);
       return new Date(y, m - 1, d);
+    }
+
+    // Lấy ngày Thứ Hai đầu tuần (YYYY-MM-DD) của ngày truyền vào
+    function getWeekMondayStr(date = new Date()) {
+      const d = typeof date === 'string'
+        ? parseLocalDate(date)
+        : new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const dayOfWeek = d.getDay() || 7; // Thứ 2 = 1 ... Chủ Nhật = 7
+      d.setDate(d.getDate() - dayOfWeek + 1);
+      return getLocalDateStr(d);
+    }
+
+    // Lấy ngày Chủ Nhật cuối tuần (YYYY-MM-DD) của ngày truyền vào
+    function getWeekSundayStr(date = new Date()) {
+      const d = typeof date === 'string'
+        ? parseLocalDate(date)
+        : new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const dayOfWeek = d.getDay() || 7; // Thứ 2 = 1 ... Chủ Nhật = 7
+      d.setDate(d.getDate() - dayOfWeek + 7);
+      return getLocalDateStr(d);
     }
 
     // Cộng thêm X ngày vào chuỗi YYYY-MM-DD
@@ -222,6 +242,8 @@
 
     function checkAutoResetNewDay() {
       const todayStr = getLocalDateStr();
+      const mondayStr = getWeekMondayStr(todayStr);
+      const sundayStr = getWeekSundayStr(todayStr);
       let hasChange = false;
 
       tasks.forEach(t => {
@@ -229,7 +251,6 @@
         if (!t.repeat || t.repeat === 'none') return;
 
         if (t.repeat === 'daily') {
-          // Đối chiếu trực tiếp với lịch sử tick của ngày hôm nay
           const doneToday = Boolean(t.logs && Number(t.logs[todayStr]) > 0);
           if (Boolean(t.completed) !== doneToday) {
             t.completed = doneToday;
@@ -240,12 +261,30 @@
             t.dueDate = todayStr;
             hasChange = true;
           }
+        } else if (t.repeat === 'weekly') {
+          // Chu kỳ tuần: từ Thứ Hai (mondayStr) đến hết Chủ Nhật (sundayStr)
+          const doneThisWeek = Boolean(
+            t.logs && Object.keys(t.logs).some(
+              date => date >= mondayStr && date <= sundayStr && Number(t.logs[date]) > 0
+            )
+          );
+
+          if (Boolean(t.completed) !== doneThisWeek) {
+            t.completed = doneThisWeek;
+            t.progress = doneThisWeek ? 100 : 0;
+            hasChange = true;
+          }
+
+          // Hạn hoàn thành của chu kỳ tuần luôn neo về Chủ Nhật của tuần hiện tại
+          if (!t.dueDate || t.dueDate < sundayStr) {
+            t.dueDate = sundayStr;
+            hasChange = true;
+          }
         } else if (t.completed && t.lastDoneDate && t.lastDoneDate < todayStr) {
           const currentDue = t.dueDate || t.lastDoneDate;
           if (todayStr > currentDue || t.lastDoneDate >= currentDue) {
             let nextDue = currentDue;
             const stepFn = (dStr) => {
-              if (t.repeat === 'weekly') return addDaysStr(dStr, 7);
               if (t.repeat === 'monthly') return addMonthsStr(dStr, 1);
               if (t.repeat === 'custom_month') return addMonthsStr(dStr, parseInt(t.repeatMonths) || 1);
               if (t.repeat === 'yearly') return addMonthsStr(dStr, 12);
@@ -331,7 +370,7 @@
     function saveTask() {
       const id = document.getElementById('task-id').value || Date.now().toString();
       const title = document.getElementById('task-title').value.trim();
-      const dueDate = document.getElementById('task-date').value || getLocalDateStr();
+      let dueDate = document.getElementById('task-date').value || getLocalDateStr();
       const type = document.getElementById('task-type').value;
       const repeat = document.getElementById('task-repeat').value;
       const customMonths = parseInt(document.getElementById('task-repeat-months').value) || 1;
@@ -344,6 +383,8 @@
       const existingIndex = tasks.findIndex(t => t.id === id);
       const oldTask = existingIndex > -1 ? tasks[existingIndex] : null;
       const todayStr = getLocalDateStr();
+      const mondayStr = getWeekMondayStr(todayStr);
+      const sundayStr = getWeekSundayStr(todayStr);
 
       let completed = oldTask ? Boolean(oldTask.completed) : false;
       let progress = oldTask ? (oldTask.progress || 0) : 0;
@@ -352,6 +393,16 @@
         const doneToday = Boolean(oldTask && oldTask.logs && Number(oldTask.logs[todayStr]) > 0);
         completed = doneToday;
         progress = doneToday ? (Number(oldTask.logs[todayStr]) || 100) : 0;
+      } else if (repeat === 'weekly') {
+        // Neo hạn tuần vào Chủ Nhật của tuần chứa ngày đã chọn
+        dueDate = getWeekSundayStr(dueDate);
+        const doneThisWeek = Boolean(
+          oldTask && oldTask.logs && Object.keys(oldTask.logs).some(
+            date => date >= mondayStr && date <= sundayStr && Number(oldTask.logs[date]) > 0
+          )
+        );
+        completed = doneThisWeek;
+        progress = doneThisWeek ? 100 : 0;
       }
 
       const taskData = {
@@ -419,7 +470,18 @@
         task.lastDoneDate = todayStr;
         task.logs[todayStr] = task.progress || 100;
       } else {
-        delete task.logs[todayStr];
+        if (task.repeat === 'weekly') {
+          // Bỏ tick nhiệm vụ tuần -> xóa toàn bộ log trong tuần T2–CN hiện tại
+          const mondayStr = getWeekMondayStr(todayStr);
+          const sundayStr = getWeekSundayStr(todayStr);
+          Object.keys(task.logs).forEach(date => {
+            if (date >= mondayStr && date <= sundayStr) {
+              delete task.logs[date];
+            }
+          });
+        } else {
+          delete task.logs[todayStr];
+        }
         if (task.lastDoneDate === todayStr) task.lastDoneDate = null;
       }
 
@@ -470,9 +532,7 @@
 
       const now = new Date();
       const todayStr = getLocalDateStr(now);
-
-      const dayOfWeek = now.getDay() || 7;
-      const weekEndStr = getLocalDateStr(new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek + 7));
+      const weekEndStr = getWeekSundayStr(now);
       const monthEndStr = getLocalDateStr(new Date(now.getFullYear(), now.getMonth() + 1, 0));
 
       // Sắp xếp: Ưu tiên Task đánh dấu sao (⭐) lên đầu
@@ -485,18 +545,19 @@
         if (currentFilter === 'today') {
           if (isDone) return false;
           if (rep === 'daily') return true;
+          if (rep === 'weekly') return !t.dueDate || t.dueDate <= weekEndStr;
           return t.dueDate && t.dueDate <= todayStr;
         }
 
         if (currentFilter === 'week') {
           if (isDone) return false;
-          if (rep === 'daily') return true;
+          if (rep === 'daily' || rep === 'weekly') return !t.dueDate || t.dueDate <= weekEndStr;
           return t.dueDate && t.dueDate <= weekEndStr;
         }
 
         if (currentFilter === 'month') {
           if (isDone) return false;
-          if (rep === 'daily') return true;
+          if (rep === 'daily' || rep === 'weekly') return true;
           return t.dueDate && t.dueDate <= monthEndStr;
         }
 
@@ -565,10 +626,10 @@
         targetCount = 1;
         totalPercentSum = logs[todayStr] || 0;
       } else if (range === 'week') {
+        // Tuần cố định từ Thứ Hai đến hết Chủ Nhật
         targetCount = task.repeat === 'daily' ? 7 : 1;
-        const dayOfWeek = now.getDay() || 7;
-        const mondayStr = getLocalDateStr(new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek + 1));
-        const sundayStr = getLocalDateStr(new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek + 7));
+        const mondayStr = getWeekMondayStr(now);
+        const sundayStr = getWeekSundayStr(now);
 
         Object.keys(logs).forEach(date => {
           if (date >= mondayStr && date <= sundayStr) {
@@ -620,6 +681,7 @@
         const repeatBadge = repeatLabels[rep] || '1 lần';
         const isOneTime = rep === 'none';
         const dueShort = t.dueDate ? t.dueDate.slice(5).split('-').reverse().join('/') : '';
+        const duePrefix = rep === 'weekly' ? ' · CN ' : ' · ';
 
         const statRow = document.createElement('div');
         statRow.className = 'bg-slate-900/60 hover:bg-slate-900/90 p-2 rounded-lg border border-slate-700/40 space-y-1 cursor-pointer transition active:scale-[0.99]';
@@ -629,7 +691,7 @@
           <div class="flex justify-between items-center text-slate-200 gap-1.5">
             <span class="font-semibold flex items-center gap-1 min-w-0 truncate">
               ${t.starred ? '⭐' : ''}<span class="truncate">${t.title}</span>
-              <span class="text-[9px] px-1.5 py-0.5 rounded ${isOneTime ? 'bg-amber-950/80 text-amber-300 border border-amber-700/50' : 'bg-indigo-950/70 text-indigo-300 border border-indigo-700/40'} shrink-0">${repeatBadge}${dueShort ? ' · ' + dueShort : ''}</span>
+              <span class="text-[9px] px-1.5 py-0.5 rounded ${isOneTime ? 'bg-amber-950/80 text-amber-300 border border-amber-700/50' : 'bg-indigo-950/70 text-indigo-300 border border-indigo-700/40'} shrink-0">${repeatBadge}${dueShort ? duePrefix + dueShort : ''}</span>
             </span>
             <div class="flex items-center gap-1.5 shrink-0">
               <button onclick="editTask('${t.id}', event)" class="text-slate-400 hover:text-indigo-400 text-[11px]" title="Sửa">✏️</button>
@@ -676,17 +738,19 @@
       if (!task.logs) task.logs = {};
 
       const now = new Date();
+      const dayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 
       for (let i = 0; i < 14; i++) {
         const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
         const dateStr = getLocalDateStr(d);
+        const dayLabel = dayNames[d.getDay()];
         const val = task.logs[dateStr];
         const isDone = val !== undefined && val > 0;
 
         const dayItem = document.createElement('label');
         dayItem.className = `flex justify-between items-center p-2 rounded-xl border ${isDone ? 'bg-emerald-950/40 border-emerald-800/50 text-emerald-200' : 'bg-slate-900 border-slate-700/50 text-slate-300'} cursor-pointer`;
         dayItem.innerHTML = `
-          <span>${i === 0 ? 'Hôm nay' : (i === 1 ? 'Hôm qua' : dateStr)} (${dateStr})</span>
+          <span>${i === 0 ? 'Hôm nay' : (i === 1 ? 'Hôm qua' : dayLabel)} · ${dayLabel} (${dateStr})</span>
           <div class="flex items-center gap-2">
             ${isDone ? `<span class="text-[10px] font-bold text-emerald-400">${val}%</span>` : ''}
             <input type="checkbox" ${isDone ? 'checked' : ''} onchange="toggleHistoryDate('${dateStr}', this.checked)" class="w-4 h-4 accent-emerald-500 rounded cursor-pointer">
@@ -709,7 +773,16 @@
       }
 
       const todayStr = getLocalDateStr();
-      if (dateStr === todayStr) {
+      if (task.repeat === 'weekly') {
+        const mondayStr = getWeekMondayStr(todayStr);
+        const sundayStr = getWeekSundayStr(todayStr);
+        const doneThisWeek = Object.keys(task.logs).some(
+          d => d >= mondayStr && d <= sundayStr && Number(task.logs[d]) > 0
+        );
+        task.completed = doneThisWeek;
+        task.progress = doneThisWeek ? 100 : 0;
+        if (!doneThisWeek) task.lastDoneDate = null;
+      } else if (dateStr === todayStr) {
         task.completed = isChecked;
         task.progress = isChecked ? 100 : 0;
         task.lastDoneDate = isChecked ? todayStr : null;
@@ -735,7 +808,7 @@
 
       txt += `📊 TỔNG QUAN TIẾN ĐỘ KHUNG THỜI GIAN:\n`;
       ['today', 'week', 'month'].forEach(range => {
-        const rangeName = range === 'today' ? 'Hôm nay  ' : (range === 'week' ? 'Tuần này ' : 'Tháng này');
+        const rangeName = range === 'today' ? 'Hôm nay       ' : (range === 'week' ? 'Tuần (T2–CN)  ' : 'Tháng này     ');
         let sum = 0;
         tasks.forEach(t => sum += getTaskStatsByRange(t, range).percent);
         const avg = tasks.length > 0 ? Math.round(sum / tasks.length) : 0;
@@ -743,11 +816,11 @@
       });
       txt += `\n`;
 
-      txt += `📌 THỐNG KÊ CHI TIẾT TỪNG MỤC (TUẦN NÀY):\n`;
+      txt += `📌 THỐNG KÊ CHI TIẾT TỪNG MỤC (TUẦN T2–CN):\n`;
       tasks.forEach((t, i) => {
         const stats = getTaskStatsByRange(t, 'week');
         txt += `${i + 1}. ${t.starred ? '[⭐ ƯU TIÊN] ' : ''}${t.title}\n`;
-        txt += `   - Chu kỳ lặp     : ${t.repeat || 'Không'}\n`;
+        txt += `   - Chu kỳ lặp     : ${repeatLabels[t.repeat || 'none'] || t.repeat || 'Không'}\n`;
         txt += `   - Hạn tiếp theo  : ${t.dueDate || 'Không hạn'}\n`;
         txt += `   - Tiến độ tuần   : ${stats.percent}%\n`;
         txt += `-------------------------------------\n`;
