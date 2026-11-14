@@ -159,6 +159,15 @@
     let currentFilter = 'today';
     let db = null;
 
+    const repeatLabels = {
+      none: '1 lần',
+      daily: 'Hàng ngày',
+      weekly: 'Hàng tuần',
+      monthly: 'Hàng tháng',
+      custom_month: 'Theo tháng',
+      yearly: 'Hàng năm'
+    };
+
     // Lấy chuỗi ngày YYYY-MM-DD chuẩn theo múi giờ địa phương của thiết bị
     function getLocalDateStr(date = new Date()) {
       const y = date.getFullYear();
@@ -181,7 +190,7 @@
       return getLocalDateStr(d);
     }
 
-    // Cộng thêm X tháng vào chuỗi YYYY-MM-DD (xử lý an toàn ngày cuối tháng như 31 -> 28/29/30)
+    // Cộng thêm X tháng vào chuỗi YYYY-MM-DD
     function addMonthsStr(dateStr, months) {
       const d = parseLocalDate(dateStr) || new Date();
       const targetDay = d.getDate();
@@ -199,7 +208,6 @@
       document.getElementById('task-date').value = getLocalDateStr();
     };
 
-    // Tự động kiểm tra qua ngày mới khi quay lại tab/ứng dụng trên điện thoại mà không cần tải lại trang
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         checkAutoResetNewDay();
@@ -207,7 +215,6 @@
       }
     });
 
-    // Kiểm tra định kỳ mỗi phút phòng trường hợp mở ứng dụng xuyên qua 00:00
     setInterval(() => {
       checkAutoResetNewDay();
       renderTasks();
@@ -218,12 +225,15 @@
       let hasChange = false;
 
       tasks.forEach(t => {
+        if (typeof t.repeat === 'string') t.repeat = t.repeat.trim();
         if (!t.repeat || t.repeat === 'none') return;
 
         if (t.repeat === 'daily') {
-          if (t.completed && t.lastDoneDate && t.lastDoneDate !== todayStr) {
-            t.completed = false;
-            t.progress = 0;
+          // Đối chiếu trực tiếp với lịch sử tick của ngày hôm nay
+          const doneToday = Boolean(t.logs && Number(t.logs[todayStr]) > 0);
+          if (Boolean(t.completed) !== doneToday) {
+            t.completed = doneToday;
+            t.progress = doneToday ? (Number(t.logs[todayStr]) || 100) : 0;
             hasChange = true;
           }
           if (!t.dueDate || t.dueDate < todayStr) {
@@ -231,8 +241,6 @@
             hasChange = true;
           }
         } else if (t.completed && t.lastDoneDate && t.lastDoneDate < todayStr) {
-          // Với lặp hàng tuần / hàng tháng / X tháng / hàng năm:
-          // Khi đã qua ngày hoàn thành và qua hạn hiện tại, tự động dời sang kỳ kế tiếp và mở khóa lại
           const currentDue = t.dueDate || t.lastDoneDate;
           if (todayStr > currentDue || t.lastDoneDate >= currentDue) {
             let nextDue = currentDue;
@@ -335,15 +343,25 @@
 
       const existingIndex = tasks.findIndex(t => t.id === id);
       const oldTask = existingIndex > -1 ? tasks[existingIndex] : null;
+      const todayStr = getLocalDateStr();
+
+      let completed = oldTask ? Boolean(oldTask.completed) : false;
+      let progress = oldTask ? (oldTask.progress || 0) : 0;
+
+      if (repeat === 'daily') {
+        const doneToday = Boolean(oldTask && oldTask.logs && Number(oldTask.logs[todayStr]) > 0);
+        completed = doneToday;
+        progress = doneToday ? (Number(oldTask.logs[todayStr]) || 100) : 0;
+      }
 
       const taskData = {
         id: id,
         title: title,
         dueDate: dueDate,
         type: type,
-        progress: oldTask ? oldTask.progress : 0,
-        completed: oldTask ? oldTask.completed : false,
-        starred: oldTask ? (oldTask.starred || false) : false,
+        progress: progress,
+        completed: completed,
+        starred: oldTask ? Boolean(oldTask.starred) : false,
         repeat: repeat,
         repeatMonths: customMonths,
         logs: oldTask ? (oldTask.logs || {}) : {},
@@ -410,7 +428,7 @@
     }
 
     function deleteTask(id, e) {
-      e.stopPropagation();
+      if (e) e.stopPropagation();
       if (confirm('Bạn muốn xóa nhiệm vụ này?')) {
         tasks = tasks.filter(t => t.id !== id);
         saveData();
@@ -419,7 +437,7 @@
     }
 
     function editTask(id, e) {
-      e.stopPropagation();
+      if (e) e.stopPropagation();
       const task = tasks.find(t => t.id === id);
       if (!task) return;
 
@@ -453,8 +471,7 @@
       const now = new Date();
       const todayStr = getLocalDateStr(now);
 
-      // Tính thứ Hai đầu tuần và Chủ Nhật cuối tuần chuẩn theo giờ địa phương
-      const dayOfWeek = now.getDay() || 7; // Thứ 2 = 1 ... Chủ Nhật = 7
+      const dayOfWeek = now.getDay() || 7;
       const weekEndStr = getLocalDateStr(new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek + 7));
       const monthEndStr = getLocalDateStr(new Date(now.getFullYear(), now.getMonth() + 1, 0));
 
@@ -462,21 +479,24 @@
       tasks.sort((a, b) => (b.starred ? 1 : 0) - (a.starred ? 1 : 0));
 
       const filtered = tasks.filter(t => {
+        const isDone = Boolean(t.completed);
+        const rep = (t.repeat || 'none').trim();
+
         if (currentFilter === 'today') {
-          if (t.completed) return false;
-          if (t.repeat === 'daily') return true;
+          if (isDone) return false;
+          if (rep === 'daily') return true;
           return t.dueDate && t.dueDate <= todayStr;
         }
 
         if (currentFilter === 'week') {
-          if (t.completed) return false;
-          if (t.repeat === 'daily') return true;
+          if (isDone) return false;
+          if (rep === 'daily') return true;
           return t.dueDate && t.dueDate <= weekEndStr;
         }
 
         if (currentFilter === 'month') {
-          if (t.completed) return false;
-          if (t.repeat === 'daily') return true;
+          if (isDone) return false;
+          if (rep === 'daily') return true;
           return t.dueDate && t.dueDate <= monthEndStr;
         }
 
@@ -498,16 +518,11 @@
         const item = document.createElement('div');
         item.className = `bg-slate-800/90 border border-slate-700/80 px-3 py-2 rounded-xl flex items-center justify-between gap-2 shadow-sm transition-all ${task.completed ? 'opacity-40 bg-slate-900/40' : ''} ${task.starred ? 'border-amber-500/50 bg-slate-800' : ''}`;
 
-        let controlHTML = '';
-        if (task.type === 'check') {
-          controlHTML = `
-            <input type="checkbox" ${task.completed ? 'checked' : ''} onchange="updateProgress('${task.id}', 0, this.checked)" class="w-4 h-4 accent-indigo-500 rounded cursor-pointer shrink-0">
-          `;
-        } else {
-          controlHTML = `
-            <input type="checkbox" ${task.completed ? 'checked' : ''} onchange="updateProgress('${task.id}', ${task.completed ? 0 : 100}, this.checked)" class="w-4 h-4 accent-indigo-500 rounded cursor-pointer shrink-0">
-          `;
-        }
+        const controlHTML = task.type === 'check'
+          ? `<input type="checkbox" ${task.completed ? 'checked' : ''} onchange="updateProgress('${task.id}', 0, this.checked)" class="w-4 h-4 accent-indigo-500 rounded cursor-pointer shrink-0">`
+          : `<input type="checkbox" ${task.completed ? 'checked' : ''} onchange="updateProgress('${task.id}', ${task.completed ? 0 : 100}, this.checked)" class="w-4 h-4 accent-indigo-500 rounded cursor-pointer shrink-0">`;
+
+        const repLabel = repeatLabels[task.repeat || 'none'] || '';
 
         item.innerHTML = `
           <!-- Khối bên trái: Nút kéo lên/xuống + Checkbox + Tên Task -->
@@ -522,9 +537,9 @@
             </span>
           </div>
 
-          <!-- Khối bên phải: Hạn + Nút Sao + Sửa/Xóa -->
-          <div class="flex items-center gap-2 shrink-0 text-xs">
-            <span class="text-[10px] text-slate-400 hidden sm:inline">${task.dueDate ? task.dueDate.slice(5) : ''}</span>
+          <!-- Khối bên phải: Nhãn chu kỳ + Nút Sao + Sửa/Xóa -->
+          <div class="flex items-center gap-1.5 shrink-0 text-xs">
+            <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-900/80 text-slate-400 border border-slate-700/60">${repLabel}</span>
             
             <button onclick="toggleStar('${task.id}', event)" class="text-sm transition active:scale-125">
               ${task.starred ? '⭐' : '☆'}
@@ -601,14 +616,26 @@
         const stats = getTaskStatsByRange(t, selectedRange);
         totalPercentSum += stats.percent;
 
+        const rep = (t.repeat || 'none').trim();
+        const repeatBadge = repeatLabels[rep] || '1 lần';
+        const isOneTime = rep === 'none';
+        const dueShort = t.dueDate ? t.dueDate.slice(5).split('-').reverse().join('/') : '';
+
         const statRow = document.createElement('div');
         statRow.className = 'bg-slate-900/60 hover:bg-slate-900/90 p-2 rounded-lg border border-slate-700/40 space-y-1 cursor-pointer transition active:scale-[0.99]';
         statRow.onclick = () => openHistoryModal(t.id);
 
         statRow.innerHTML = `
-          <div class="flex justify-between items-center text-slate-200">
-            <span class="font-semibold flex items-center gap-1">${t.starred ? '⭐' : ''}${t.title} <span class="text-[9px] text-indigo-400">🔍</span></span>
-            <span class="font-black ${stats.percent === 100 ? 'text-emerald-400' : 'text-indigo-400'}">${stats.percent}%</span>
+          <div class="flex justify-between items-center text-slate-200 gap-1.5">
+            <span class="font-semibold flex items-center gap-1 min-w-0 truncate">
+              ${t.starred ? '⭐' : ''}<span class="truncate">${t.title}</span>
+              <span class="text-[9px] px-1.5 py-0.5 rounded ${isOneTime ? 'bg-amber-950/80 text-amber-300 border border-amber-700/50' : 'bg-indigo-950/70 text-indigo-300 border border-indigo-700/40'} shrink-0">${repeatBadge}${dueShort ? ' · ' + dueShort : ''}</span>
+            </span>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <button onclick="editTask('${t.id}', event)" class="text-slate-400 hover:text-indigo-400 text-[11px]" title="Sửa">✏️</button>
+              <button onclick="deleteTask('${t.id}', event)" class="text-slate-400 hover:text-red-400 text-[11px]" title="Xóa">🗑️</button>
+              <span class="font-black ${stats.percent === 100 ? 'text-emerald-400' : 'text-indigo-400'}">${stats.percent}%</span>
+            </div>
           </div>
           <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
             <div class="${stats.percent === 100 ? 'bg-emerald-500' : 'bg-indigo-500'} h-full transition-all duration-300" style="width: ${stats.percent}%"></div>
